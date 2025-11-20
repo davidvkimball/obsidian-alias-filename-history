@@ -80,9 +80,10 @@ export class AliasFilenameHistorySettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName('File extensions')
-      .setDesc('Comma-separated list of file extensions to track, e.g., md,mdx')
+      .setDesc('Comma-separated list of file extensions to track.')
       .addText((text) =>
         text
+          .setPlaceholder('md')
           .setValue(this.plugin.settings.fileExtensions.join(','))
           .onChange(async (value) => {
             this.plugin.settings.fileExtensions = value.split(',').map((s) => s.trim()).filter((s) => s);
@@ -92,7 +93,7 @@ export class AliasFilenameHistorySettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName('Include folders')
-      .setDesc('Comma-separated list of folder paths to include (empty for all). Use {vault} or {root} to include only files directly in the vault root (no subfolders).')
+      .setDesc('Comma-separated list of folder paths to include. If empty, all folders are included. Use {vault} or {root} to include only files directly in the vault root (no subfolders).')
       .addText((text) =>
         text
           .setValue(this.plugin.settings.includeFolders.join(','))
@@ -104,12 +105,25 @@ export class AliasFilenameHistorySettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName('Exclude folders')
-      .setDesc('Comma-separated list of folder paths to exclude. Use {vault} or {root} to exclude files directly in the vault root (no subfolders).')
+      .setDesc('Comma-separated list of folder paths to exclude. Supports wildcards: use "folder/*" to exclude direct children, "folder/**" to exclude all descendants. Use {vault} or {root} to exclude files directly in the vault root.')
       .addText((text) =>
         text
           .setValue(this.plugin.settings.excludeFolders.join(','))
           .onChange(async (value) => {
             this.plugin.settings.excludeFolders = value.split(',').map((s) => s.trim()).filter((s) => s);
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName('Exclude property name')
+      .setDesc('Name of a boolean property to check in files. Files with this property set to true will be excluded from tracking. Takes priority over folder filtering.')
+      .addText((text) =>
+        text
+          .setPlaceholder('skipRenameTracking')
+          .setValue(this.plugin.settings.excludePropertyName)
+          .onChange(async (value) => {
+            this.plugin.settings.excludePropertyName = value;
             await this.plugin.saveSettings();
           })
       );

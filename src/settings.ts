@@ -7,6 +7,7 @@ export interface AliasFilenameHistorySettings {
   excludeFolders: string[];
   fileExtensions: string[];
   trackFolderRenames: string;
+  excludePropertyName: string;
 }
 
 export const DEFAULT_SETTINGS: AliasFilenameHistorySettings = {
@@ -18,4 +19,5 @@ export const DEFAULT_SETTINGS: AliasFilenameHistorySettings = {
   excludeFolders: [],
   fileExtensions: ['md'],
   trackFolderRenames: '',
+  excludePropertyName: '',
 };

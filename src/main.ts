@@ -52,6 +52,39 @@ export default class AliasFilenameHistoryPlugin extends Plugin {
     return path.startsWith(folder + '/') || path === folder;
   }
 
+  private isPathExcluded(path: string, excludePattern: string): boolean {
+    // Handle vault root variable
+    if (excludePattern.includes('{vault}') || excludePattern.includes('{root}')) {
+      const resolvedPattern = excludePattern.replace(/\{vault\}|\{root\}/g, '');
+      if (resolvedPattern === '' || resolvedPattern === '/') {
+        // Exclude only files directly in the vault root (no subfolders)
+        return !path.includes('/');
+      }
+      excludePattern = resolvedPattern;
+    }
+
+    // Handle wildcards
+    if (excludePattern.endsWith('/**')) {
+      // Recursive exclusion: docs/** matches docs and all subfolders
+      const baseFolder = excludePattern.slice(0, -3);
+      return path.startsWith(baseFolder + '/') || path === baseFolder;
+    } else if (excludePattern.endsWith('/*')) {
+      // Direct children only: docs/* matches docs/subfolder but not docs/subfolder/nested
+      // Should exclude files in subfolders, but NOT files directly in the base folder
+      const baseFolder = excludePattern.slice(0, -2);
+      if (!path.startsWith(baseFolder + '/')) {
+        return path === baseFolder;
+      }
+      const pathAfterBase = path.slice(baseFolder.length + 1);
+      // Exclude if path is in a subfolder (has at least one slash)
+      // Don't exclude files directly in the base folder (no slash)
+      return pathAfterBase.includes('/');
+    }
+    
+    // Normal folder matching
+    return path.startsWith(excludePattern + '/') || path === excludePattern;
+  }
+
   private handleRename(newFile: TAbstractFile, oldPath: string) {
     if (!(newFile instanceof TFile)) return;
     if (!this.settings.fileExtensions.includes(newFile.extension)) return;
@@ -72,13 +105,53 @@ export default class AliasFilenameHistoryPlugin extends Plugin {
 
     const path = newFile.path;
     
-    // Only apply include/exclude folder checks to file name changes, not folder renames
-    if (isNameChange) {
-      if (this.settings.includeFolders.length > 0 && !this.settings.includeFolders.some(f => this.isPathInFolder(path, f))) {
-        return;
+    // Apply filtering checks to both file name changes and folder renames
+    // Priority: Property exclusion -> Include folders -> Exclude folders
+    
+    // 1. Check property-based exclusion first (highest priority)
+    if (this.settings.excludePropertyName && this.settings.excludePropertyName.trim() !== '') {
+      const cache = this.app.metadataCache.getFileCache(newFile);
+      const frontmatter = cache?.frontmatter;
+      if (frontmatter && frontmatter[this.settings.excludePropertyName] === true) {
+        return; // Exclude this file
       }
-      if (this.settings.excludeFolders.some(f => this.isPathInFolder(path, f))) {
-        return;
+    }
+    
+    // 2. Check include folders (if includeFolders is not empty, only include those)
+    if (this.settings.includeFolders.length > 0) {
+      if (!this.settings.includeFolders.some(f => this.isPathInFolder(path, f))) {
+        return; // Not in any included folder
+      }
+    }
+    
+    // 3. Check exclude folders (with wildcard support)
+    // Special case: if tracking folder renames for a specific file name, allow it even in excluded subfolders
+    // unless using recursive exclusion (**) or the file is nested deeper than one level
+    const isIndexFileForFolderRename = isFolderChange && 
+      this.settings.trackFolderRenames && 
+      this.settings.trackFolderRenames.trim() !== '' &&
+      (this.settings.caseSensitive 
+        ? newFile.basename === this.settings.trackFolderRenames
+        : newFile.basename.toLowerCase() === this.settings.trackFolderRenames.toLowerCase());
+    
+    for (const excludePattern of this.settings.excludeFolders) {
+      if (this.isPathExcluded(path, excludePattern)) {
+        // If this is an index file for folder rename tracking, and the pattern is /* (not /**),
+        // allow it through only if it's in a direct child folder (one level deep)
+        if (isIndexFileForFolderRename && excludePattern.endsWith('/*') && !excludePattern.endsWith('/**')) {
+          // Check if the file is in a direct child (only one level deep)
+          const baseFolder = excludePattern.slice(0, -2);
+          if (path.startsWith(baseFolder + '/')) {
+            const pathAfterBase = path.slice(baseFolder.length + 1);
+            const pathParts = pathAfterBase.split('/');
+            // If there's only one path part before the filename, it's a direct child
+            // pathParts will be like ['subfolder', 'filename.md'] - we want exactly 2 parts
+            if (pathParts.length === 2) {
+              continue; // Skip this exclusion - it's a direct child index file
+            }
+          }
+        }
+        return; // Excluded by folder pattern
       }
     }
 

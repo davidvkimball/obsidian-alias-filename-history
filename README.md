@@ -6,6 +6,9 @@ Particularly helpful when used in conjunction wth [Astro Composer](https://githu
 
 ![alias-file-name-history-preview](https://github.com/user-attachments/assets/173da923-9761-4a7d-b08f-1f39d4722299)
 
+## Made for Vault CMS
+
+Part of the [Vault CMS](https://github.com/davidvkimball/vault-cms) project.
 
 ## Features
 - **Tracks File Name Changes**: Stores old file names as aliases in the `aliases` property after a rename, with a configurable timeout (default 5 seconds).
